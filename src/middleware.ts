@@ -155,8 +155,38 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session if expired
-  const { data: { user } } = await supabase.auth.getUser()
+  // Refresh session if expired - handle invalid refresh tokens gracefully
+  let user = null
+  try {
+    const { data, error } = await supabase.auth.getUser()
+    if (error) {
+      // If refresh token is invalid, clear it silently
+      // This happens when cookies are stale or project was reset
+      if (error.message?.includes('refresh_token') || error.message?.includes('Invalid Refresh Token')) {
+        // Clear invalid auth cookies - Supabase SSR uses these cookie names
+        const cookieNames = [
+          'sb-access-token',
+          'sb-refresh-token',
+          'sb-auth-token',
+          'sb-auth-token.0',
+          'sb-auth-token.1',
+        ]
+        cookieNames.forEach(name => {
+          response.cookies.delete(name)
+          request.cookies.delete(name)
+        })
+        // Continue without user - user will need to log in again
+      } else {
+        // Log other auth errors but don't break the app
+        console.warn('Auth error in middleware:', error.message)
+      }
+    } else {
+      user = data.user
+    }
+  } catch (error) {
+    // Silently handle any auth errors - don't break the app
+    console.warn('Error in middleware auth check:', error)
+  }
 
   // Protected routes that require authentication
   const protectedPaths = ['/dashboard', '/subject', '/chapter']

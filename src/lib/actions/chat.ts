@@ -100,18 +100,25 @@ export async function createMessage(input: CreateMessageInput) {
       console.error('Error fetching chat history:', historyError);
     }
 
-    // Get user's session token for authentication
-    const { data: { session } } = await supabase.auth.getSession();
-    
     // Trigger the chat webhook Edge Function (fire and forget)
     const edgeFunctionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/chat-webhook`;
     
-    if (session?.access_token) {
+    // In production, server actions may not get session cookies properly in Vercel's serverless environment
+    // Try to get session token, but fall back to service role key if not available
+    const { data: { session } } = await supabase.auth.getSession();
+    const accessToken = session?.access_token;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    // Use access token if available (local dev), otherwise use service role key (production)
+    const authToken = accessToken || serviceRoleKey;
+    
+    if (authToken) {
       fetch(edgeFunctionUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${authToken}`,
+          ...(serviceRoleKey && !accessToken ? { 'apikey': serviceRoleKey } : {}),
         },
         body: JSON.stringify({
           chat_id: chatMessage.id,
@@ -125,7 +132,8 @@ export async function createMessage(input: CreateMessageInput) {
         console.error('Error calling chat webhook:', err);
       });
     } else {
-      console.warn('No session token available for edge function call');
+      console.error('No authentication token available for edge function call');
+      console.error('Make sure SUPABASE_SERVICE_ROLE_KEY is set in environment variables');
     }
 
     return {
