@@ -18,34 +18,35 @@ import type { CookieOptions } from '@supabase/ssr'
  * Content Security Policy configuration
  * Defines allowed sources for scripts, styles, images, etc.
  */
-function getContentSecurityPolicy(nonce: string) {
+function getContentSecurityPolicy() {
   const isDevelopment = process.env.NODE_ENV === 'development'
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+  const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || ''
+  const plausibleSrc = plausibleDomain ? `https://${plausibleDomain}` : 'https://plausible.io'
   
   // In development, allow more permissive CSP for hot reloading
   if (isDevelopment) {
     return `
       default-src 'self';
-      script-src 'self' 'unsafe-eval' 'unsafe-inline' 'nonce-${nonce}';
+      script-src 'self' 'unsafe-eval' 'unsafe-inline';
+      script-src-elem 'self' 'unsafe-inline';
       style-src 'self' 'unsafe-inline';
       img-src 'self' data: https: blob:;
       font-src 'self' data:;
-      connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL} wss: ws: http://localhost:*;
+      connect-src 'self' ${supabaseUrl} wss: ws: http://localhost:*;
       frame-ancestors 'none';
       base-uri 'self';
       form-action 'self';
     `.replace(/\s{2,}/g, ' ').trim()
   }
 
-  // Production CSP - balanced security and functionality
-  // Note: 'unsafe-inline' is needed for Next.js generated scripts
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || ''
-  const plausibleSrc = plausibleDomain ? `https://${plausibleDomain}` : 'https://plausible.io'
-  
+  // Production CSP - Next.js requires 'unsafe-inline' for generated scripts
+  // Note: We cannot use nonce with 'unsafe-inline' as they are mutually exclusive
+  // Next.js generates inline scripts that we cannot control, so 'unsafe-inline' is required
   return `
     default-src 'self';
-    script-src 'self' 'unsafe-inline' 'unsafe-eval' ${plausibleSrc} 'nonce-${nonce}';
-    script-src-elem 'self' 'unsafe-inline' ${plausibleSrc} 'nonce-${nonce}';
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' ${plausibleSrc};
+    script-src-elem 'self' 'unsafe-inline' ${plausibleSrc};
     style-src 'self' 'unsafe-inline';
     style-src-elem 'self' 'unsafe-inline';
     img-src 'self' data: https: blob:;
@@ -60,22 +61,13 @@ function getContentSecurityPolicy(nonce: string) {
 }
 
 /**
- * Generates a cryptographically secure nonce for CSP
- */
-function generateNonce(): string {
-  const array = new Uint8Array(16)
-  crypto.getRandomValues(array)
-  return Buffer.from(array).toString('base64')
-}
-
-/**
  * Adds comprehensive security headers to the response
  */
-function addSecurityHeaders(response: NextResponse, nonce: string): NextResponse {
+function addSecurityHeaders(response: NextResponse): NextResponse {
   const headers = response.headers
 
   // Content Security Policy
-  headers.set('Content-Security-Policy', getContentSecurityPolicy(nonce))
+  headers.set('Content-Security-Policy', getContentSecurityPolicy())
 
   // Strict Transport Security (HSTS) - force HTTPS
   headers.set(
@@ -106,16 +98,10 @@ function addSecurityHeaders(response: NextResponse, nonce: string): NextResponse
   headers.set('Cross-Origin-Resource-Policy', 'same-origin')
   headers.set('Cross-Origin-Embedder-Policy', 'require-corp')
 
-  // Add nonce to response for use in scripts
-  headers.set('X-Nonce', nonce)
-
   return response
 }
 
 export async function middleware(request: NextRequest) {
-  // Generate nonce for this request
-  const nonce = generateNonce()
-
   let response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -197,7 +183,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Add security headers to response
-  response = addSecurityHeaders(response, nonce)
+  response = addSecurityHeaders(response)
 
   return response
 }
