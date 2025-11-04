@@ -1,0 +1,18 @@
+{
+  "name": "StudAI",
+  "short_name": "StudAI",
+  "description": "AI-powered study assistant for organizing and learning from your materials",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0F172A",
+  "theme_color": "#3B82F6",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
+
+

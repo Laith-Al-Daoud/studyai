@@ -1,0 +1,21 @@
+# ESLint ignore file
+
+# Configuration files
+jest.config.js
+next.config.ts
+
+# Third-party libraries
+public/pdf-worker/
+
+# Build output
+.next/
+out/
+build/
+
+# Dependencies
+node_modules/
+
+# Test coverage
+coverage/
+
+
