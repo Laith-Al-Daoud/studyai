@@ -36,19 +36,26 @@ function getContentSecurityPolicy(nonce: string) {
     `.replace(/\s{2,}/g, ' ').trim()
   }
 
-  // Production CSP - more restrictive
+  // Production CSP - balanced security and functionality
+  // Note: 'unsafe-inline' is needed for Next.js generated scripts
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+  const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || ''
+  const plausibleSrc = plausibleDomain ? `https://${plausibleDomain}` : 'https://plausible.io'
+  
   return `
     default-src 'self';
-    script-src 'self' 'nonce-${nonce}' 'strict-dynamic';
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' ${plausibleSrc} 'nonce-${nonce}';
+    script-src-elem 'self' 'unsafe-inline' ${plausibleSrc} 'nonce-${nonce}';
     style-src 'self' 'unsafe-inline';
-    img-src 'self' data: https://*.supabase.co blob:;
-    font-src 'self' data:;
-    connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL} wss://*.supabase.co;
+    style-src-elem 'self' 'unsafe-inline';
+    img-src 'self' data: https: blob:;
+    font-src 'self' data: https:;
+    connect-src 'self' ${supabaseUrl} wss://*.supabase.co ws://*.supabase.co ${plausibleSrc};
     frame-ancestors 'none';
     base-uri 'self';
     form-action 'self';
+    manifest-src 'self';
     upgrade-insecure-requests;
-    block-all-mixed-content;
   `.replace(/\s{2,}/g, ' ').trim()
 }
 
