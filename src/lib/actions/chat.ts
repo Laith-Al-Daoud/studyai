@@ -103,37 +103,65 @@ export async function createMessage(input: CreateMessageInput) {
     // Trigger the chat webhook Edge Function (fire and forget)
     const edgeFunctionUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/chat-webhook`;
     
+    console.log('[DEBUG] About to call chat webhook:', {
+      url: edgeFunctionUrl,
+      chatId: chatMessage.id,
+      fileCount: files?.length || 0,
+    });
+    
     // In production, server actions may not get session cookies properly in Vercel's serverless environment
     // Try to get session token, but fall back to service role key if not available
     const { data: { session } } = await supabase.auth.getSession();
     const accessToken = session?.access_token;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     
+    console.log('[DEBUG] Auth tokens:', {
+      hasAccessToken: !!accessToken,
+      hasServiceRoleKey: !!serviceRoleKey,
+      accessTokenLength: accessToken?.length || 0,
+    });
+    
     // Use access token if available (local dev), otherwise use service role key (production)
     const authToken = accessToken || serviceRoleKey;
     
     if (authToken) {
-      fetch(edgeFunctionUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-          ...(serviceRoleKey && !accessToken ? { 'apikey': serviceRoleKey } : {}),
-        },
-        body: JSON.stringify({
-          chat_id: chatMessage.id,
-          user_id: user.id,
-          chapter_id: validated.chapter_id,
-          message: validated.message,
-          files: files || [],
-          history: previousMessages || [],
-        }),
-      }).catch((err) => {
-        console.error('Error calling chat webhook:', err);
-      });
+      console.log('[DEBUG] Calling webhook with auth token');
+      
+      try {
+        const webhookResponse = await fetch(edgeFunctionUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`,
+            ...(serviceRoleKey && !accessToken ? { 'apikey': serviceRoleKey } : {}),
+          },
+          body: JSON.stringify({
+            chat_id: chatMessage.id,
+            user_id: user.id,
+            chapter_id: validated.chapter_id,
+            message: validated.message,
+            files: files || [],
+            history: previousMessages || [],
+          }),
+        });
+        
+        console.log('[DEBUG] Webhook response status:', webhookResponse.status);
+        
+        if (!webhookResponse.ok) {
+          const errorText = await webhookResponse.text();
+          console.error('[DEBUG] Webhook error response:', errorText);
+        } else {
+          console.log('[DEBUG] Webhook called successfully');
+        }
+      } catch (err) {
+        console.error('[DEBUG] Error calling chat webhook:', err);
+      }
     } else {
-      console.error('No authentication token available for edge function call');
-      console.error('Make sure SUPABASE_SERVICE_ROLE_KEY is set in environment variables');
+      console.error('[DEBUG] No authentication token available for edge function call');
+      console.error('[DEBUG] Environment check:', {
+        hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+        hasServiceRoleKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      });
     }
 
     return {
