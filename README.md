@@ -1,6 +1,6 @@
 # StudyAI - Lightweight Studying Assistant with RAG
 
-StudyAI is a privacy-focused studying assistant that helps authenticated users organize their study materials, upload PDF lecture files, and interact with an AI-powered chat assistant that uses **Retrieval-Augmented Generation (RAG)** to provide context-aware answers based on actual document content.
+StudyAI is a studying assistant that helps authenticated users organize their study materials, upload PDF lecture files, and interact with an AI-powered chat assistant that uses **Retrieval-Augmented Generation (RAG)** to provide context-aware answers based on actual document content.
 
 ## Tech Stack
 
